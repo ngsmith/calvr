@@ -32,6 +32,19 @@ IF(OMICRON_FOUND)
     SET(EXTRA_SOURCE ${EXTRA_SOURCE} TrackerOmicron.cpp)
 ENDIF(OMICRON_FOUND)
 
+
+###KINECT
+SET(LIB_PUBLIC HEADERS ${LIB_PUBLIC_HEADERS}
+${HEADER_PATH}/TrackerKinect.h
+${HEADER_PATH}/protocol/skeletonframe.pb.h
+${HEADER_PATH}/protocol/skeleton.pb.h)
+
+SET(EXTRA_SOURCE ${EXTRA_SOURCE} TrackerKinect.cpp ${HEADER_PATH}/protocol/skeletonframe.pb.cc
+${HEADER_PATH}/protocol/skeleton.pb.cc)
+
+###/KINECT
+
+
 SET(LIB_SRC_FILES
     ${EXTRA_SOURCE}
     TrackingManager.cpp
@@ -43,6 +56,10 @@ SET(LIB_SRC_FILES
 SET(LIB_EXTERNAL_INCLUDES
     ${OSG_INCLUDE_DIR}
 )
+
+SET(OSG_LIBRARIES
+    ${OSG_LIBRARIES}
+    "-lprotobuf -lzmq -luuid")
 
 SET(LIB_EXTERNAL_LIBRARIES
     ${OSG_LIBRARIES}

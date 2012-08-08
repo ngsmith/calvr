@@ -1,3 +1,5 @@
+#include <cvrInput/TrackerKinect.h>
+
 #include <cvrInput/TrackingManager.h>
 #include <cvrInput/TrackerSlave.h>
 #include <cvrInput/TrackerShmem.h>
@@ -168,6 +170,11 @@ bool TrackingManager::init()
             else if(systemName == "MOUSE")
             {
                 tracker = new TrackerMouse();
+            }
+
+            else if(systemName == "KINECT")
+            {
+                tracker = new TrackerKinect();
             }
             else
             {
