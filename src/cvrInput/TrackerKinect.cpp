@@ -26,6 +26,9 @@ bool TrackerKinect::init(std::string tag)
 TrackerBase::TrackedBody * TrackerKinect::getBody(int index)
 {
 std::map<unsigned int,std::vector<TrackedBody*> >::iterator it = _bodyMap.begin();
+
+if (index > (it->second.size()-1)) return NULL;
+
 return it->second[index];
 /*    std::map<unsigned int,std::vector<TrackedBody*> >::iterator it = _bodyMap.begin();
     for(int i = 0; i < index; i++)
