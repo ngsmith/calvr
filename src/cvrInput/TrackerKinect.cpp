@@ -89,11 +89,11 @@ void TrackerKinect::update(
                 tb->qz = q.z();
                 tb->qw = q.w();
                 TrackedBody* tb2 = new TrackedBody;
-                tb->x = tb->y = tb->z = 0.0;
-                tb->qx = q.x();
-                tb->qy = q.y();
-                tb->qz = q.z();
-                tb->qw = q.w();
+                tb2->x = tb2->y = tb2->z = 0.0;
+                tb2->qx = q.x();
+                tb2->qy = q.y();
+                tb2->qz = q.z();
+                tb2->qw = q.w();
                 _bodyMap[skelid].push_back(tb);
                 _bodyMap[skelid].push_back(tb2);
             }
