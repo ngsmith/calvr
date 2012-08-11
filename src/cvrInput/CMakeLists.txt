@@ -35,12 +35,18 @@ ENDIF(OMICRON_FOUND)
 
 ###KINECT
 SET(LIB_PUBLIC HEADERS ${LIB_PUBLIC_HEADERS}
-${HEADER_PATH}/TrackerKinect.h
-${HEADER_PATH}/protocol/skeletonframe.pb.h
-${HEADER_PATH}/protocol/skeleton.pb.h)
+${HEADER_PATH}/TrackerKinect.h)
 
-SET(EXTRA_SOURCE ${EXTRA_SOURCE} TrackerKinect.cpp ${HEADER_PATH}/protocol/skeletonframe.pb.cc
-${HEADER_PATH}/protocol/skeleton.pb.cc)
+SET(EXTRA_SOURCE ${EXTRA_SOURCE} TrackerKinect.cpp)
+SET(REMOTEKINECT_PATH /home/marcin/X/RemoteKinect/)
+INCLUDE_DIRECTORIES(${REMOTEKINECT_PATH})
+SET(LIB_PUBLIC_HEADERS ${LIB_PUBLIC_HEADERS}
+${REMOTEKINECT_PATH}/protocol/skeletonframe.pb.h
+${REMOTEKINECT_PATH}/protocol/skeleton.pb.h)
+SET(EXTRA_SOURCE ${EXTRA_SOURCE}
+${REMOTEKINECT_PATH}/protocol/skeletonframe.pb.cc
+${REMOTEKINECT_PATH}/protocol/skeleton.pb.cc)
+
 
 ###/KINECT
 

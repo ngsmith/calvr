@@ -31,34 +31,20 @@
        </Body0>
      </TrackingSystem0>
 
-<!--  386.997,-1722.32,-181.115   -->
-  <TrackingSystem1 value="KINECT">
-        <Offset x="-386" y="1722" z="181" />
-        <Orientation h="0" p="90" r="0" />
-        <NumBodies value="2"/>
-        <Body1><Orientation p="-90"/></Body1>
-    </TrackingSystem1>
-
-
-
-
-
-
-
-     <NumHeads value="1" />
-     <Head0Address system="1" body="0" />
+     <NumHeads value="0" />
+     <Head0Address system="0" body="0" />
 
      <NumHands value="1" />
-<!--     <Hand0>
+     <Hand0>
        <Address system="0" body="0" />
        <ButtonMask system0="0x0F" system1="0xFF" />
        <Graphic value="NONE" />
-     </Hand0>-->
-     <Hand0>
-       <Address system="1" body="1" />
-       <ButtonMask system0="0x0F" system1="0xFF" />
-       <Graphic value="NONE" />
      </Hand0>
+     <Hand1>
+       <Address system="0" body="1" />
+       <ButtonMask system0="0xF0" system1="0x00" />
+       <Graphic value="NONE" />
+     </Hand1>
 
      <NumValuators value="0" />
      <Valuator0 station="0" number="0" />
@@ -125,7 +111,7 @@
     </BoardMenu>
    </MenuSystem>
 
-   <ViewerPosition x="0" y="0" z="0" />
+   <ViewerPosition x="0" y="-2957" z="0" />
    <SceneSize value="1000" />
 
    <NumPipes value="1" />
@@ -137,7 +123,7 @@
    </PipeConfig>
 
    <ChannelConfig>
-    <Channel width="1920" height="1200" left="0" bottom="0" comment="MAIN" channel="0" stereoMode="MONO"  windowIndex="0"  name="0"  />
+    <Channel width="1024" height="768" left="0" bottom="0" comment="MAIN" channel="0" stereoMode="MONO"  windowIndex="0"  name="0"  />
    </ChannelConfig>
    
    <WindowConfig>
@@ -145,5 +131,5 @@
    </WindowConfig>
 
    <ScreenConfig>
-    <Screen width="520" comment="FRONT" h="0.0" originX="0" originY="1320" originZ="0" height="330" p="0.0" r="0.0" name="0" screen="0" />
+    <Screen width="2000" comment="FRONT" h="0.0" originX="0" originY="0" originZ="0" height="1500" p="0.0" r="0.0" name="0" screen="0" />
    </ScreenConfig>

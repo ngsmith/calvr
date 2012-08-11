@@ -4,8 +4,9 @@
  <OssimPlanet>
           <ConfigFile value="/home/cdefanti/calvr/plugins/calit2/OssimPlanet/kwl/ivl.kwl" />
  </OssimPlanet>
- <GML value="off" />
-<ArtifactVis2 value="on" />
+<GML value="off" />
+<RemoteKinectTest value="on" />
+<ArtifactVis2 value="off" />
  <ArtifactVis2>
           <Database value="/home/marcin/X/ArchInterface/queries/" />
           <ArchInterfaceFolder value="/home/marcin/X/ArchInterface/" />
