@@ -1,15 +1,40 @@
 #include <cvrMenu/MenuManager.h>
 #include <cvrMenu/MenuSystem.h>
+#include <cvrMenu/MenuCheckbox.h>
 #include <cvrInput/TrackingManager.h>
 #include <cvrKernel/SceneManager.h>
 #include <cvrKernel/ComController.h>
 #include <cvrKernel/InteractionManager.h>
 #include <cvrKernel/NodeMask.h>
 #include <cvrUtil/Intersection.h>
+#define EASYWSCLIENT_COMPILATION_UNIT
+#include <cvrUtil/WebConnection.h>
 
 using namespace cvr;
 
 MenuManager * MenuManager::_myPtr = NULL;
+
+void menu_handler(const std::string & message)
+{
+    MenuItem * menu_item;
+    MenuCheckbox * menu_checkbox;
+    int value;
+    char b;
+    if (sscanf(message.c_str(), "[\"menuCallback\",\"%p\"]", (void **) &menu_item) == 1) {
+        printf("%s\n", message.c_str());
+        if (menu_item->getCallback()) {
+            menu_item->getCallback()->menuCallback(menu_item);
+        }
+    }
+    if (sscanf(message.c_str(), "[\"MenuCheckbox::setValue\",\"%p\",%d]", (void **) &menu_checkbox, &value) == 2) {
+        printf("%s\n", message.c_str());
+        printf("%p\n", menu_checkbox->getCallback());
+        menu_checkbox->setValue(value);
+        if (menu_checkbox->getCallback()) {
+            menu_checkbox->getCallback()->menuCallback(menu_checkbox);
+        }
+    }
+}
 
 MenuManager::MenuManager()
 {
@@ -63,6 +88,9 @@ void MenuManager::update()
     {
         return;
     }
+
+    WebSingletons::menu()->poll();
+    WebSingletons::menu()->dispatch(menu_handler);
 
     double startTime, endTime;
 

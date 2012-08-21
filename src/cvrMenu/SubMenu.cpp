@@ -1,5 +1,7 @@
 #include <cvrMenu/SubMenu.h>
 #include <cvrMenu/MenuSystem.h>
+#include <cvrUtil/WebConnection.h>
+#include "stringprintf.hpp"
 
 using namespace cvr;
 
@@ -9,10 +11,12 @@ SubMenu::SubMenu(std::string name, std::string title) :
     _name = name;
     if(title.empty())
     {
+        WebSingletons::menu()->send(stringprintf("[\"SubMenu\", \"%p\", \"%s\", \"%s\"]\n", this, name.c_str(), name.c_str()));
         _title = name;
     }
     else
     {
+        WebSingletons::menu()->send(stringprintf("[\"SubMenu\", \"%p\", \"%s\", \"%s\"]\n", this, name.c_str(), title.c_str()));
         _title = title;
     }
 }
@@ -35,6 +39,7 @@ void SubMenu::addItem(MenuItem * item)
             return;
         }
     }
+    WebSingletons::menu()->send(stringprintf("[\"addItem\", %d, \"%p\", \"%p\"]\n", -1, this, item));
     _children.push_back(item);
     _dirty = true;
 }
@@ -53,12 +58,14 @@ void SubMenu::addItem(MenuItem * item, int position)
 
     if(position < 0 || position >= _children.size())
     {
+        WebSingletons::menu()->send(stringprintf("[\"addItem\", %d, \"%p\", \"%p\"]\n", -1, this, item));
 	_children.push_back(item);
     }
     else
     {
 	std::vector<MenuItem*>::iterator it = _children.begin();
 	it += position;
+        WebSingletons::menu()->send(stringprintf("[\"addItem\", %d, \"%p\", \"%p\"]\n", position, this, item));
 	_children.insert(it,item);
     }
 
@@ -72,6 +79,7 @@ void SubMenu::removeItem(MenuItem * item)
     {
         if((*it) == item)
         {
+             WebSingletons::menu()->send(stringprintf("[\"removeItem\", \"%p\", \"%p\"]\n", this, item));
             _children.erase(it);
             _dirty = true;
             return;
