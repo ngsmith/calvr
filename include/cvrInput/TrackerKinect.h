@@ -5,7 +5,7 @@
 #define CALVR_TRACKER_KINECT_H
 
 #include <zmq.hpp>
-#include "PubSub.h"
+#include "shared/PubSub.h"
 #include "protocol/skeletonframe.pb.h"
 
 #include <cvrInput/TrackerBase.h>

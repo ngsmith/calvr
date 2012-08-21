@@ -5,8 +5,8 @@
           <ConfigFile value="/home/cdefanti/calvr/plugins/calit2/OssimPlanet/kwl/ivl.kwl" />
  </OssimPlanet>
 <GML value="off" />
-<RemoteKinectTest value="on" />
-<ArtifactVis2 value="off" />
+<RemoteKinectTest value="off" />
+<ArtifactVis2 value="on" />
  <ArtifactVis2>
           <Database value="/home/marcin/X/ArchInterface/queries/" />
           <ArchInterfaceFolder value="/home/marcin/X/ArchInterface/" />
@@ -40,9 +40,21 @@
           <KinectDefaultOn value="true" />
 
           <Cylinder>
-            <Min value="0.09" />
-            <Max value="0.55" />
+            <Min value="0.15" /> <!--0.09 -->
+            <Max value="1.95" /> <!--0.55 -->
           </Cylinder>
+
+          <KinectServer>
+              <Skeleton value="tcp://localhost:9002" />
+              <PointCloud value="tcp://localhost:9003" />
+              <ColorMap value="tcp://localhost:9001" />
+              <DepthMap value="tcp://localhost:9000" />
+              
+              <!--<Skeleton value="tcp://137.110.119.244:9202" />
+              <PointCloud value="tcp://137.110.119.244:9003" />
+              <ColorMap value="tcp://137.110.119.244:9001" />
+              <DepthMap value="tcp://137.110.119.244:9000" />-->
+          </KinectServer>
 
   <!--        <OmicronServer>
             <Host value="127.0.0.1" />

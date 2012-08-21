@@ -31,8 +31,16 @@
        </Body0>
      </TrackingSystem0>
 
-     <NumHeads value="0" />
-     <Head0Address system="0" body="0" />
+<TrackingSystem1 value="KINECT">
+        <Kinect><Server value="tcp://localhost:9002" /></Kinect>
+        <Offset x="-386" y="1722" z="181" />
+        <Orientation h="0" p="90" r="0" />
+        <NumBodies value="2"/>
+        <Body1><Orientation p="-90"/></Body1>
+</TrackingSystem1>
+
+     <NumHeads value="1" />
+     <Head0Address system="1" body="0" />
 
      <NumHands value="1" />
      <Hand0>

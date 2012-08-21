@@ -1,4 +1,5 @@
 #include <cvrInput/TrackerKinect.h>
+#include <cvrConfig/ConfigManager.h>
 
 #include <cstring>
 #include <iostream>
@@ -18,15 +19,17 @@ bool TrackerKinect::init(std::string tag)
 {
     printf("--- CalVR initializing TrackerKinect\n");
     context = new zmq::context_t(1);
-    skel_socket = new SubSocket<RemoteKinect::SkeletonFrame>(*context,"tcp://localhost:9002");
+//    skel_socket = new SubSocket<RemoteKinect::SkeletonFrame>(*context,"tcp://localhost:9002");
+    skel_socket = new SubSocket<RemoteKinect::SkeletonFrame> (*context, ConfigManager::getEntry(tag + ".Kinect.Server"));
     return true;
+    //return skel_socket==NULL?false:true; // needed?
 }
 
-//
 TrackerBase::TrackedBody * TrackerKinect::getBody(int index)
 {
-std::map<unsigned int,std::vector<TrackedBody*> >::iterator it = _bodyMap.begin();
+std::map<unsigned int,std::vector<TrackedBody*> >::iterator it = _bodyMap.begin(); // always from first skeleton tracked
 
+if (it == _bodyMap.end()) return NULL;
 if (index > (it->second.size()-1)) return NULL;
 
 return it->second[index];
@@ -74,7 +77,7 @@ void TrackerKinect::update(
 {
 
     RemoteKinect::SkeletonFrame sf;
-    if (skel_socket->recv(sf))
+    while (skel_socket->recv(sf))
     {
         for (int i=0;i<sf.skeletons_size();i++)
         {
