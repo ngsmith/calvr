@@ -1,4 +1,6 @@
 #include <cvrMenu/MenuButton.h>
+#include <cvrUtil/WebConnection.h>
+#include "stringprintf.hpp"
 
 using namespace cvr;
 
@@ -6,6 +8,7 @@ MenuButton::MenuButton(std::string text) :
         MenuItem()
 {
     _text = text;
+    WebSingletons::menu()->send(stringprintf("[\"MenuButton\", \"%p\", \"%s\"]\n", this, text.c_str()));
 }
 
 MenuButton::~MenuButton()
