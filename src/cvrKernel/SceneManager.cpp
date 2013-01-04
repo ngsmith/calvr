@@ -3,19 +3,25 @@
 #include <cvrConfig/ConfigManager.h>
 #include <cvrKernel/InteractionManager.h>
 #include <cvrKernel/NodeMask.h>
+#include <cvrKernel/ScreenConfig.h>
 #include <cvrKernel/CVRViewer.h>
 #include <cvrKernel/ComController.h>
 #include <cvrKernel/SceneObject.h>
+#include <cvrKernel/PluginManager.h>
+#include <cvrUtil/OsgMath.h>
 
 #include <osg/ShapeDrawable>
 #include <osg/Geode>
 #include <osg/LightSource>
 #include <osg/LightModel>
 #include <osg/Material>
+#include <osg/Texture2D>
+#include <osgDB/ReadFile>
 
 #include <iostream>
 #include <list>
 #include <queue>
+#include <cassert>
 
 using namespace cvr;
 
@@ -36,6 +42,8 @@ SceneManager * SceneManager::_myPtr = NULL;
 
 SceneManager::SceneManager()
 {
+    _wallValid = false;
+    _uniqueMapInUse = false;
 }
 
 SceneManager::~SceneManager()
@@ -94,6 +102,47 @@ bool SceneManager::init()
     _hidePointer = false;
     _menuOpenObject = NULL;
 
+    _menuScale = ConfigManager::getFloat("value","ContextMenus.Scale",1.0);
+    _menuMinDistance = ConfigManager::getFloat("value",
+            "ContextMenus.MinDistance",750.0);
+    _menuMaxDistance = ConfigManager::getFloat("value",
+            "ContextMenus.MaxDistance",1500.0);
+    _menuDefaultOpenButton = ConfigManager::getInt("value",
+            "ContextMenus.DefaultOpenButton",1);
+
+
+    _wallWidth = _wallHeight = 2000.0;
+
+    std::string typestr = ConfigManager::getEntry("value","TiledWall.Type","PLANAR");
+    if(typestr == "PLANAR")
+    {
+	_wallType = WT_PLANAR;
+    }
+    else
+    {
+	_wallType = WT_UNKNOWN;
+    }
+
+    switch(_wallType)
+    {
+	case WT_PLANAR:
+	{
+	    if(ConfigManager::getBool("autoDetect","TiledWall.Type",true))
+	    {
+		detectWallBounds();
+	    }
+	    else
+	    {
+		//TODO: manual wall description
+	    }
+	    _wallValid = true;
+	}
+	    break;
+	default:
+	    break;
+    }
+    //std::cerr << "WallWidth: " << _wallWidth << " WallHeight: " << _wallHeight << std::endl;
+
     initPointers();
     initLights();
     initSceneState();
@@ -105,14 +154,6 @@ bool SceneManager::init()
 
     b = ConfigManager::getBool("HidePointer",false);
     setHidePointer(b);
-
-    _menuScale = ConfigManager::getFloat("value","ContextMenus.Scale",1.0);
-    _menuMinDistance = ConfigManager::getFloat("value",
-            "ContextMenus.MinDistance",750.0);
-    _menuMaxDistance = ConfigManager::getFloat("value",
-            "ContextMenus.MaxDistance",1500.0);
-    _menuDefaultOpenButton = ConfigManager::getInt("value",
-            "ContextMenus.DefaultOpenButton",1);
 
     return true;
 }
@@ -140,8 +181,25 @@ void SceneManager::update()
 
     for(int i = 0; i < TrackingManager::instance()->getNumHands(); i++)
     {
-        _handTransforms[i]->setMatrix(
-                TrackingManager::instance()->getHandMat(i));
+	switch(TrackingManager::instance()->getPointerGraphicType(i))
+        {
+	    case POINTER:
+	    {
+		osg::Vec3 intersect;
+		if(getPointOnTiledWall(TrackingManager::instance()->getHandMat(i),intersect))
+		{
+		    //TODO add wall rotation to pointer
+		    osg::Matrix m;
+		    m.makeTranslate(intersect);
+		    _handTransforms[i]->setMatrix(m);
+		}
+		break;
+	    }
+	    default:
+		_handTransforms[i]->setMatrix(
+			TrackingManager::instance()->getHandMat(i));
+		break;
+	}
     }
 
     if(_showAxis)
@@ -180,16 +238,8 @@ void SceneManager::postEventUpdate()
 	    SceneObject * object = it->second;
 	    while(object)
 	    {
-		if(it->first >= 0)
-		{
-		    object->updateCallback(it->first,
-			    TrackingManager::instance()->getHandMat(it->first));
-		}
-		else
-		{
-		    object->updateCallback(it->first,
-			    InteractionManager::instance()->getMouseMat());
-		}
+		object->updateCallback(it->first,
+			TrackingManager::instance()->getHandMat(it->first));
 		object = object->_parent;
 	    }
         }
@@ -358,16 +408,38 @@ bool SceneManager::processEvent(InteractionEvent * ie)
     }
     else
     {
-        for(std::map<SceneObject*,int>::iterator it =
-                _uniqueActiveObjects.begin(); it != _uniqueActiveObjects.end();
-                it++)
-        {
-            if(it->first->processEvent(ie))
-            {
-                return true;
-            }
-        }
-        return false;
+	_uniqueMapInUse = true;
+	for(std::map<SceneObject*,int>::iterator it =
+		_uniqueActiveObjects.begin(); it != _uniqueActiveObjects.end();
+		it++)
+	{
+	    if(_uniqueBlacklistMap.find(it->first) != _uniqueBlacklistMap.end())
+	    {
+		continue;
+	    }
+
+	    if(it->first->processEvent(ie))
+	    {
+		_uniqueMapInUse = false;
+
+		for(std::map<SceneObject*,bool>::iterator it = _uniqueBlacklistMap.begin(); it != _uniqueBlacklistMap.end(); it++)
+		{
+		    _uniqueActiveObjects.erase(it->first);
+		}
+		_uniqueBlacklistMap.clear();
+
+		return true;
+	    }
+	}
+
+	for(std::map<SceneObject*,bool>::iterator it = _uniqueBlacklistMap.begin(); it != _uniqueBlacklistMap.end(); it++)
+	{
+	    _uniqueActiveObjects.erase(it->first);
+	}
+	_uniqueBlacklistMap.clear();
+
+	_uniqueMapInUse = false;
+	return false;
     }
 
     if(hand == -2)
@@ -425,12 +497,40 @@ void SceneManager::unregisterSceneObject(SceneObject * object)
                         _activeObjects.begin(); aobjit != _activeObjects.end();
                         aobjit++)
                 {
-                    if(aobjit->second == object)
+		    SceneObject * aoRoot = aobjit->second;
+		    while(aoRoot && aoRoot->_parent)
+		    {
+			aoRoot = aoRoot->_parent;
+		    }
+
+                    if(aoRoot == object)
                     {
                         aobjit->second = NULL;
                     }
                 }
-                _uniqueActiveObjects.erase(object);
+
+		// close menu if needed
+		SceneObject * menuSORoot = _menuOpenObject;
+		while(menuSORoot && menuSORoot->_parent)
+		{
+		    menuSORoot = menuSORoot->_parent;
+		}
+
+		if(menuSORoot == object)
+		{
+		    closeOpenObjectMenu();
+		}
+
+		// if this happened during the SceneManager's processEvent, don't invalidate iterator
+		if(!_uniqueMapInUse)
+		{
+		    _uniqueActiveObjects.erase(object);
+		}
+		else
+		{
+		    _uniqueBlacklistMap[object] = true;
+		}
+
                 object->setRegistered(false);
                 return;
             }
@@ -475,6 +575,18 @@ SceneManager::CameraCallbacks * SceneManager::getCameraCallbacks(osg::Camera * c
     }
 }
 
+bool SceneManager::getPointOnTiledWall(const osg::Matrix & mat, osg::Vec3 & wallPoint)
+{
+    osg::Vec3 linePoint1(0,0,0), linePoint2(0,1,0);
+    linePoint1 = linePoint1 * mat;
+    linePoint2 = linePoint2 * mat;
+    osg::Vec3 planePoint(0,0,0),planeNormal(0,-1,0);
+    planePoint = planePoint * _wallTransform;
+    planeNormal = planeNormal * _wallTransform;
+    float w;
+    return linePlaneIntersectionRef(linePoint1,linePoint2,planePoint,planeNormal,wallPoint,w);
+}
+
 void SceneManager::initPointers()
 {
     for(int i = 0; i < TrackingManager::instance()->getNumHands(); i++)
@@ -498,6 +610,130 @@ void SceneManager::initPointers()
                 _handTransforms[i]->addChild(geode);
                 break;
             }
+	    case POINTER:
+	    {
+		/*float width = 150.0;
+		float height = -150.0;
+		osg::Vec4 color(1.0,1.0,1.0,1.0);
+		osg::Vec3 pos(0,0,0);
+
+		osg::Geometry * geo = new osg::Geometry();
+		osg::Vec3Array* verts = new osg::Vec3Array();
+		verts->push_back(pos);
+		verts->push_back(pos + osg::Vec3(width,0,0));
+		verts->push_back(pos + osg::Vec3(width,0,height));
+		verts->push_back(pos + osg::Vec3(0,0,height));
+
+		geo->setVertexArray(verts);
+
+		osg::DrawElementsUInt * ele = new osg::DrawElementsUInt(
+			osg::PrimitiveSet::QUADS,0);
+
+		ele->push_back(0);
+		ele->push_back(1);
+		ele->push_back(2);
+		ele->push_back(3);
+		geo->addPrimitiveSet(ele);
+
+		osg::Vec4Array* colors = new osg::Vec4Array;
+		colors->push_back(color);
+
+		osg::TemplateIndexArray<unsigned int,osg::Array::UIntArrayType,4,4> *colorIndexArray;
+		colorIndexArray = new osg::TemplateIndexArray<unsigned int,
+				osg::Array::UIntArrayType,4,4>;
+		colorIndexArray->push_back(0);
+		colorIndexArray->push_back(0);
+		colorIndexArray->push_back(0);
+		colorIndexArray->push_back(0);
+
+		geo->setColorArray(colors);
+		geo->setColorIndices(colorIndexArray);
+		geo->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
+
+		osg::Vec2Array* texcoords = new osg::Vec2Array;
+		texcoords->push_back(osg::Vec2(0,1));
+		texcoords->push_back(osg::Vec2(1,1));
+		texcoords->push_back(osg::Vec2(1,0));
+		texcoords->push_back(osg::Vec2(0,0));
+		geo->setTexCoordArray(0,texcoords);
+
+		osg::Geode * geode = new osg::Geode();
+                geode->addDrawable(geo);
+                geode->setNodeMask(geode->getNodeMask() & ~INTERSECT_MASK);
+                _handTransforms[i]->addChild(geode);
+
+		osg::StateSet * stateset = geode->getOrCreateStateSet();
+		stateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+		stateset->setMode(GL_DEPTH_TEST,osg::StateAttribute::OFF);
+		stateset->setMode(GL_BLEND,osg::StateAttribute::ON);
+		stateset->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
+
+		osg::Image * image = osgDB::readImageFile(CalVR::instance()->getHomeDir() + "/icons/mousePointer.png");
+		if(image)
+		{
+		    osg::Texture2D* texture;
+		    texture = new osg::Texture2D;
+		    texture->setImage(image);
+
+		    texture->setResizeNonPowerOfTwoHint(false);
+
+		    stateset->setTextureAttributeAndModes(0,texture,osg::StateAttribute::ON);
+		}*/
+
+		float minDem = std::min(_wallWidth,_wallHeight);
+		float size = minDem * 0.05;
+		size = std::min(size,200.0f);
+
+		float scaleX = size;
+		float scaleZ = size;
+		osg::Vec4 color(0.0,1.0,0.0,0.75);
+
+		osg::Geometry * geo = new osg::Geometry();
+		osg::Vec3Array* verts = new osg::Vec3Array();
+		verts->push_back(osg::Vec3(0.7*scaleX,0,-0.5*scaleZ));
+		verts->push_back(osg::Vec3(0.0*scaleX,0,0.0*scaleZ));
+		verts->push_back(osg::Vec3(0.4*scaleX,0,-0.5*scaleZ));
+		verts->push_back(osg::Vec3(0.25*scaleX,0,-0.75*scaleZ));
+
+		geo->setVertexArray(verts);
+
+		osg::DrawElementsUInt * ele = new osg::DrawElementsUInt(
+			osg::PrimitiveSet::TRIANGLE_STRIP,0);
+
+		ele->push_back(0);
+		ele->push_back(1);
+		ele->push_back(2);
+		ele->push_back(3);
+		geo->addPrimitiveSet(ele);
+
+		osg::Vec4Array* colors = new osg::Vec4Array;
+		colors->push_back(color);
+
+		osg::TemplateIndexArray<unsigned int,osg::Array::UIntArrayType,4,4> *colorIndexArray;
+		colorIndexArray = new osg::TemplateIndexArray<unsigned int,
+				osg::Array::UIntArrayType,4,4>;
+		colorIndexArray->push_back(0);
+		colorIndexArray->push_back(0);
+		colorIndexArray->push_back(0);
+		colorIndexArray->push_back(0);
+
+		geo->setColorArray(colors);
+		geo->setColorIndices(colorIndexArray);
+		geo->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
+
+		osg::Geode * geode = new osg::Geode();
+                geode->addDrawable(geo);
+                geode->setNodeMask(geode->getNodeMask() & ~INTERSECT_MASK);
+                _handTransforms[i]->addChild(geode);
+
+		osg::StateSet * stateset = geode->getOrCreateStateSet();
+		stateset->setMode(GL_LIGHTING,osg::StateAttribute::OFF);
+		stateset->setMode(GL_DEPTH_TEST,osg::StateAttribute::OFF);
+		stateset->setMode(GL_BLEND,osg::StateAttribute::ON);
+		stateset->setRenderingHint(osg::StateSet::TRANSPARENT_BIN);
+
+		break;
+	    }
             case NONE:
                 break;
             default:
@@ -670,6 +906,186 @@ void SceneManager::initAxis()
     }
 
     //_objectRoot->addChild(_axisNode);
+}
+
+void SceneManager::detectWallBounds()
+{
+    unsigned int const FLOATS_FOR_CORNERS = 12;
+    osg::Vec3 final_tl, final_bl, final_tr, final_br;
+
+    if (ComController::instance()->getNumSlaves() > 0)
+    {
+	// NOTE:  we are assuming master node IS head node
+	// NODES -> MASTER passing 4 world corners of screen
+	if (ComController::instance()->isMaster())
+	{
+	    int num_slaves = ComController::instance()->getNumSlaves();
+
+	    unsigned int num_corners = num_slaves * FLOATS_FOR_CORNERS;
+	    float* msgs_back = new float[num_corners];
+	    if(!cvr::ComController::instance()->readSlaves(msgs_back, sizeof(float) *
+			FLOATS_FOR_CORNERS) )
+	    {
+		delete[] msgs_back;
+		return;
+	    }
+	    std::vector<float> corners(msgs_back, msgs_back + num_corners);
+	    updateToExtremeCorners(corners);
+	    delete[] msgs_back;
+
+	    if(!cvr::ComController::instance()->sendSlaves(corners.data(),
+			sizeof(float)*corners.size()) )
+	    {
+		return;
+	    }
+
+	    final_bl = osg::Vec3(corners[ 0], corners[ 1], corners[ 2]);
+	    final_br = osg::Vec3(corners[ 3], corners[ 4], corners[ 5]);
+	    final_tr = osg::Vec3(corners[ 6], corners[ 7], corners[ 8]);
+	    final_tl = osg::Vec3(corners[ 9], corners[10], corners[11]);
+	}
+	else // Send to master
+	{
+	    osg::Vec3 world_tl, world_bl, world_tr, world_br;
+
+	    std::vector<float> corners;
+
+	    getNodeWorldCorners(corners);
+
+	    if(!cvr::ComController::instance()->sendMaster(corners.data(),
+			sizeof(float)*corners.size()) )
+	    {
+		return;
+	    }
+
+	    // Receive final extremes from master
+	    float msgs_back[FLOATS_FOR_CORNERS];
+	    if(!cvr::ComController::instance()->readMaster(msgs_back,
+			sizeof(float) * FLOATS_FOR_CORNERS) )
+	    {
+		return;
+	    }
+
+	    final_bl = osg::Vec3(msgs_back[ 0], msgs_back[ 1], msgs_back[ 2]);
+	    final_br = osg::Vec3(msgs_back[ 3], msgs_back[ 4], msgs_back[ 5]);
+	    final_tr = osg::Vec3(msgs_back[ 6], msgs_back[ 7], msgs_back[ 8]);
+	    final_tl = osg::Vec3(msgs_back[ 9], msgs_back[10], msgs_back[11]);
+
+	    unsigned int j = 0;
+	}
+    }
+    else // Make wall bounds the size of the window
+    {
+	std::vector<float> corners;
+
+	getNodeWorldCorners(corners);
+
+	final_bl = osg::Vec3(corners[ 0], corners[ 1], corners[ 2]);
+	final_br = osg::Vec3(corners[ 3], corners[ 4], corners[ 5]);
+	final_tr = osg::Vec3(corners[ 6], corners[ 7], corners[ 8]);
+	final_tl = osg::Vec3(corners[ 9], corners[10], corners[11]);
+    }
+
+    osg::Vec3 wallCenter((final_bl.x()+final_tr.x())/2.0,final_tr.y(),(final_bl.z()+final_tr.z())/2.0);
+    _wallTransform.makeTranslate(wallCenter);
+
+    /*mWorldBounds.worldXMin = final_bl.x();
+    mWorldBounds.worldXMax = final_tr.x();
+    mWorldBounds.worldZMin = final_bl.z();
+    mWorldBounds.worldZMax = final_tr.z();
+    mWorldBounds.worldY  = final_tr.y();*/
+
+    _wallWidth  = (final_tr.x() - final_bl.x());
+    _wallHeight = (final_tr.z() - final_bl.z());
+}
+
+void SceneManager::updateToExtremeCorners(std::vector<float>& corners)
+{
+    unsigned int const FLOATS_FOR_CORNERS = 12;
+    unsigned int num_corners = corners.size();
+    assert( num_corners % FLOATS_FOR_CORNERS == 0 );
+
+    osg::Vec3 bl, br, tr, tl;
+
+    for (unsigned int i = 0; i < num_corners; i += FLOATS_FOR_CORNERS)
+    {
+	if (0 == i)
+	{
+	    bl = osg::Vec3(corners[i + 0], corners[i +  1], corners[i +  2]);
+	    br = osg::Vec3(corners[i + 3], corners[i +  4], corners[i +  5]);
+	    tr = osg::Vec3(corners[i + 6], corners[i +  7], corners[i +  8]);
+	    tl = osg::Vec3(corners[i + 9], corners[i + 10], corners[i + 11]);
+	}
+	else // check for extremes
+	{
+	    if (corners[i + 0] < bl.x() || corners[i +  2] < bl.z())
+		bl = osg::Vec3(corners[i + 0], corners[i +  1],
+			corners[i +  2]);
+
+	    if (corners[i + 3] > br.x() || corners[i + 5] < br.z())
+		br = osg::Vec3(corners[i + 3], corners[i +  4],
+			corners[i +  5]);
+
+	    if (corners[i + 6] > tr.x() || corners[i + 8] > tr.z())
+		tr = osg::Vec3(corners[i + 6], corners[i +  7],
+			corners[i +  8]);
+
+	    if (corners[i + 9] < tl.x() || corners[i + 11] > tl.z())
+		tl = osg::Vec3(corners[i + 9], corners[i + 10],
+			corners[i + 11]);
+	}
+    }
+
+    corners.clear();
+
+    corners.push_back(bl.x());
+    corners.push_back(bl.y());
+    corners.push_back(bl.z());
+    corners.push_back(br.x());
+    corners.push_back(br.y());
+    corners.push_back(br.z());
+    corners.push_back(tr.x());
+    corners.push_back(tr.y());
+    corners.push_back(tr.z());
+    corners.push_back(tl.x());
+    corners.push_back(tl.y());
+    corners.push_back(tl.z());
+}
+
+void SceneManager::getNodeWorldCorners(std::vector<float>& corners)
+{
+    int num_screens = ScreenConfig::instance()->getNumScreens();
+    for (int i = 0; i < num_screens; ++i)
+    {
+	//        osg::Vec3 center = cvr::PluginHelper::getScreenInfo(i)->xyz;
+	float width  = ScreenConfig::instance()->getScreenInfo(i)->width;
+	float height = ScreenConfig::instance()->getScreenInfo(i)->height;
+	osg::Matrix screen_to_world_xfrm =
+	    ScreenConfig::instance()->getScreenInfo(i)->transform;
+
+	//        std::cerr << "WxH = " << width << " x " << height << std::endl;
+
+	osg::Vec3 tl, bl, tr, br;
+	bl = osg::Vec3( -width/2.f,  0.f, -height/2.f ) * screen_to_world_xfrm;
+	br = osg::Vec3(  width/2.f,  0.f, -height/2.f ) * screen_to_world_xfrm;
+	tr = osg::Vec3(  width/2.f,  0.f,  height/2.f ) * screen_to_world_xfrm;
+	tl = osg::Vec3( -width/2.f,  0.f,  height/2.f ) * screen_to_world_xfrm;
+
+	corners.push_back(bl.x());
+	corners.push_back(bl.y());
+	corners.push_back(bl.z());
+	corners.push_back(br.x());
+	corners.push_back(br.y());
+	corners.push_back(br.z());
+	corners.push_back(tr.x());
+	corners.push_back(tr.y());
+	corners.push_back(tr.z());
+	corners.push_back(tl.x());
+	corners.push_back(tl.y());
+	corners.push_back(tl.z());
+    }
+
+    updateToExtremeCorners(corners);
 }
 
 void SceneManager::updateActiveObject()
@@ -953,9 +1369,56 @@ SceneObject * SceneManager::findChildActiveObject(SceneObject * object,
     return object;
 }
 
+void SceneManager::removeNestedObject(SceneObject * object)
+{
+    for(std::map<int,SceneObject*>::iterator it = _activeObjects.begin(); it != _activeObjects.end(); ++it)
+    {
+	SceneObject * so = it->second;
+	while(so)
+	{
+	    if(so == object)
+	    {
+		it->second = so->_parent;
+		break;
+	    }
+	    so = so->_parent;
+	}
+    }
+
+    if(_uniqueActiveObjects.find(object) != _uniqueActiveObjects.end())
+    {
+	if(!_uniqueMapInUse)
+	{
+	    _uniqueActiveObjects.erase(object);
+	}
+	else
+	{
+	    _uniqueBlacklistMap[object] = true;
+	}
+    }
+
+    // close menu if this node is in its path
+    SceneObject * menuSO = _menuOpenObject;
+    while(menuSO)
+    {
+	if(menuSO == object)
+	{
+	    closeOpenObjectMenu();
+	}
+
+	menuSO = menuSO->_parent;
+    }
+}
+
 void SceneManager::removePluginObjects(CVRPlugin * plugin)
 {
-    //TODO create find plugin name function in PluginManager
+    std::string pluginName = PluginManager::instance()->getPluginName(plugin);
+    if(pluginName.empty())
+    {
+	return;
+    }
+
+    // TODO: finish this when I have a use case
 }
 
 void SceneManager::preDraw()

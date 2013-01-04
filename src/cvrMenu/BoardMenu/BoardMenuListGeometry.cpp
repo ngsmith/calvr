@@ -56,8 +56,7 @@ void BoardMenuListGeometry::createGeometry(MenuItem * item)
             osg::Vec4(1.0,1.0,1.0,1.0),osg::Vec3(0,-2,0));
     _geodeIcon->addDrawable(_iconGeometry.get());
 
-    //TODO make icon for this
-    osg::ref_ptr < osg::Texture2D > iconTexture;// = loadIcon("list.rgb");
+    osg::ref_ptr < osg::Texture2D > iconTexture = loadIcon("brackets.rgb");
     if(iconTexture.get() != NULL)
     {
         _geodeIcon->getOrCreateStateSet()->setTextureAttributeAndModes(0,
@@ -248,7 +247,14 @@ void BoardMenuListGeometry::processEvent(InteractionEvent * event)
         if(event->getInteraction() == BUTTON_DOWN
                 || event->getInteraction() == BUTTON_DOUBLE_CLICK)
         {
-            _point = tie->getTransform().getTrans();
+	    if(event->asPointerEvent())
+	    {
+		SceneManager::instance()->getPointOnTiledWall(tie->getTransform(),_point);
+	    }
+	    else
+	    {
+		_point = tie->getTransform().getTrans();
+	    }
             _lastDistance = 0.0;
 
             _clicked = true;
@@ -260,12 +266,24 @@ void BoardMenuListGeometry::processEvent(InteractionEvent * event)
                 || event->getInteraction() == BUTTON_UP)
         {
             MenuList * _listItem = (MenuList*)_item;
-            osg::Vec3 vec = tie->getTransform().getTrans();
-            ;
-            vec = vec - _point;
-            float newDistance = vec.z();
 
-            float range = 400;
+	    float newDistance;
+	    float range;
+
+	    if(event->asPointerEvent())
+	    {
+		osg::Vec3 newPoint;
+		SceneManager::instance()->getPointOnTiledWall(tie->getTransform(),newPoint);
+		newDistance = newPoint.z() - _point.z();
+		range = SceneManager::instance()->getTiledWallHeight() * 0.6;
+	    }
+	    else
+	    {
+		osg::Vec3 vec = tie->getTransform().getTrans();
+		vec = vec - _point;
+		newDistance = vec.z();
+		range = 400;
+	    }
 
             bool valueUpdated = false;
             int valueMax = _listItem->getListSize();

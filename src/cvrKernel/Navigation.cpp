@@ -65,6 +65,11 @@ bool Navigation::init()
 		navbase = new NavMouseKeyboard();
 		break;
 	    }
+	    case POINTER_NAV:
+	    {
+		navbase = new NavPointer();
+		break;
+	    }
 	    case TRACKER_NAV:
 	    {
 		navbase = new NavTracker();
@@ -708,6 +713,237 @@ void NavTracker::processNav(NavMode nm, osg::Matrix & mat)
         default:
             break;
     }
+}
+
+void NavPointer::processEvent(InteractionEvent * ie)
+{
+    TrackedButtonInteractionEvent * event = ie->asTrackedButtonEvent();
+
+    if(!event)
+    {
+	return;
+    }
+
+    if(event->getInteraction() == BUTTON_UP && !Navigation::instance()->getEventActive())
+    {
+        return;
+    }
+
+    if(Navigation::instance()->getEventActive()
+            && (_eventButton != event->getButton()))
+    {
+        return;
+    }
+
+    if(!Navigation::instance()->getEventActive()
+            && (event->getInteraction() == BUTTON_DOWN
+                    || event->getInteraction() == BUTTON_DOUBLE_CLICK))
+    {
+        //std::cerr << "In button down." << std::endl;
+        _eventMode = Navigation::instance()->getButtonMode(event->getButton());
+        _eventButton = event->getButton();
+        _startScale = SceneManager::instance()->getObjectScale();
+        _startXForm =
+                SceneManager::instance()->getObjectTransform()->getMatrix();
+        switch(_eventMode)
+        {
+            case WALK:
+            case DRIVE:
+            case FLY:
+            case SCALE:
+                //std::cerr << "Starting event." << std::endl;
+                SceneManager::instance()->getPointOnTiledWall(event->getTransform(),_eventPos);
+                _eventRot = event->getTransform().getRotate();
+		Navigation::instance()->setEventActive(true,_hand);
+                break;
+	    case MOVE_WORLD:
+		 SceneManager::instance()->getPointOnTiledWall(event->getTransform(),_eventPos);
+                _eventPos = getWallTrackballPoint(_eventPos);
+		Navigation::instance()->setEventActive(true,_hand);
+		break;
+            case NONE:
+            default:
+                break;
+        }
+    }
+    else if(Navigation::instance()->getEventActive() && event->getInteraction() == BUTTON_UP)
+    {
+        processNav(_eventMode,event->getTransform());
+        Navigation::instance()->setEventActive(false,_hand);
+    }
+    else if(Navigation::instance()->getEventActive() && event->getInteraction() == BUTTON_DRAG)
+    {
+        processNav(_eventMode,event->getTransform());
+    }
+}
+
+void NavPointer::processNav(NavMode nm, osg::Matrix & mat)
+{
+    switch(nm)
+    {
+        case WALK:
+        case DRIVE:
+        {
+	    osg::Vec3 pos, offset;
+	    SceneManager::instance()->getPointOnTiledWall(mat,pos);
+            offset.y() = -(pos.z() - _eventPos.z()) * 50.0 / SceneManager::instance()->getTiledWallHeight();
+            offset = offset * Navigation::instance()->getScale();
+            osg::Matrix m;
+
+            osg::Matrix r;
+            r.makeRotate(_eventRot);
+            osg::Vec3 pointInit = osg::Vec3(0,1,0);
+            pointInit = pointInit * r;
+            pointInit.z() = 0.0;
+
+            r.makeRotate(mat.getRotate());
+            osg::Vec3 pointFinal = osg::Vec3(0,1,0);
+            pointFinal = pointFinal * r;
+            pointFinal.z() = 0.0;
+
+            osg::Matrix turn;
+            if(pointInit.length2() > 0 && pointFinal.length2() > 0)
+            {
+                pointInit.normalize();
+                pointFinal.normalize();
+                float dot = pointInit * pointFinal;
+                float angle = acos(dot) / 15.0;
+                if(dot > 1.0 || dot < -1.0)
+                {
+                    angle = 0.0;
+                }
+                else if((pointInit ^ pointFinal).z() < 0)
+                {
+                    angle = -angle;
+                }
+                turn.makeRotate(-angle,osg::Vec3(0,0,1));
+            }
+
+            osg::Matrix objmat =
+                    SceneManager::instance()->getObjectTransform()->getMatrix();
+
+            osg::Vec3 origin = mat.getTrans();
+            m.makeTranslate(offset + origin);
+            m = objmat * osg::Matrix::translate(-origin) * turn * m;
+            SceneManager::instance()->setObjectMatrix(m);
+
+	    if(Navigation::instance()->getSnapToGround())
+	    {
+		float thresh = 400;
+		if(fabs(mat.getTrans().z() - _eventPos.z()) < thresh)
+		{
+		    float range = 300;
+		    osg::Vec3 start(0,0,0), end(0,0,-(Navigation::instance()->getFloorOffset()+range));
+
+		    std::vector<IsectInfo> isecvec = getObjectIntersection(SceneManager::instance()->getScene(),start,end);
+		    if(isecvec.size())
+		    {
+			if(isecvec[0].point.z() < -Navigation::instance()->getFloorOffset() + range)
+			{
+			    float adjust = isecvec[0].point.z() + Navigation::instance()->getFloorOffset();
+			    osg::Matrix adjMat;
+			    adjMat.makeTranslate(osg::Vec3(0,0,-adjust));
+			    m = m * adjMat;
+			    SceneManager::instance()->setObjectMatrix(m);
+			}
+		    }
+		}
+	    }
+
+            break;
+        }
+        case FLY:
+        {
+            osg::Matrix rotOffset = osg::Matrix::rotate(_eventRot.inverse())
+                    * osg::Matrix::rotate(mat.getRotate());
+            osg::Quat rot = rotOffset.getRotate();
+            rot = rot.inverse();
+            //rot.w() = 1.0;//(rot.w() + 99.0) / 100.0;
+            double angle;
+            osg::Vec3 vec;
+            rot.getRotate(angle,vec);
+            rot.makeRotate(angle / 20.0,vec);
+            rotOffset.makeRotate(rot);
+            //osg::Vec3 posOffset = (mat.getTrans() - _eventPos) / 20.0;
+            //posOffset = posOffset * Navigation::instance()->getScale();
+            osg::Matrix objmat =
+                    SceneManager::instance()->getObjectTransform()->getMatrix();
+            objmat = objmat * osg::Matrix::translate(-mat.getTrans()) * rotOffset
+                    * osg::Matrix::translate(mat.getTrans());
+            SceneManager::instance()->setObjectMatrix(objmat);
+            break;
+        }
+        case MOVE_WORLD:
+        {
+	    osg::Vec3 pos;
+	    SceneManager::instance()->getPointOnTiledWall(mat,pos);
+	    osg::Vec3 tbPoint = getWallTrackballPoint(pos);
+
+	    osg::Vec3 center = SceneManager::instance()->getTiledWallTransform().getTrans();
+
+	    osg::Matrix rotOffset;
+	    rotOffset.makeRotate(_eventPos,tbPoint);
+
+	    osg::Matrix objmat =
+                    SceneManager::instance()->getObjectTransform()->getMatrix();
+            objmat = objmat * osg::Matrix::translate(-center) * rotOffset
+                    * osg::Matrix::translate(center);
+            SceneManager::instance()->setObjectMatrix(objmat);
+	    _eventPos = tbPoint;
+            break;
+        }
+        case SCALE:
+        {
+            osg::Vec3 pos;
+	    SceneManager::instance()->getPointOnTiledWall(mat,pos);
+            float zdiff = pos.z() - _eventPos.z();
+            zdiff = zdiff / 300.0;
+            float newScale;
+            osg::Vec3 objectPos =
+                    (_eventPos * osg::Matrix::inverse(_startXForm))
+                            / _startScale;
+            //std::cerr << "Pos x: " << objectPos.x() << " y: " << objectPos.y() << " z: " << objectPos.z() << std::endl;
+            if(zdiff >= 0)
+            {
+                newScale = _startScale * (1.0 + zdiff);
+            }
+            else
+            {
+                newScale = _startScale / (1.0 + fabs(zdiff));
+            }
+            SceneManager::instance()->setObjectScale(newScale);
+            //std::cerr << "StartScale: " << _startScale << " newScale: " << newScale << std::endl;
+            osg::Matrix objmat =
+                    SceneManager::instance()->getObjectTransform()->getMatrix();
+            osg::Vec3 offset = -((objectPos * newScale * objmat)
+                    - (objectPos * _startScale * objmat));
+            osg::Matrix m;
+            m.makeTranslate(offset);
+            m = _startXForm * m;
+            SceneManager::instance()->setObjectMatrix(m);
+            break;
+        }
+        case NONE:
+        default:
+            break;
+    }
+}
+
+osg::Vec3 NavPointer::getWallTrackballPoint(osg::Vec3 & wallPoint)
+{
+    float minDim = std::min(SceneManager::instance()->getTiledWallWidth(),SceneManager::instance()->getTiledWallHeight());
+    minDim /= 2.0;
+    osg::Matrix wallInv = osg::Matrix::inverse(SceneManager::instance()->getTiledWallTransform());
+    osg::Vec3 point = wallPoint * wallInv;
+    point.x() /= minDim;
+    point.y() = 0.0;
+    point.z() /= minDim;
+
+    point.y() = 1.0 - point.x() * point.x() - point.z() * point.z();
+    point.y() = point.y() > 0.0 ? -sqrt(point.y()) : 0.0;
+    point.normalize();
+
+    return point;
 }
 
 NavMouseKeyboard::NavMouseKeyboard()

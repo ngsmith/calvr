@@ -1,6 +1,7 @@
 #include <cvrMenu/BoardPopupMenu.h>
 #include <cvrKernel/SceneManager.h>
 #include <cvrInput/TrackingManager.h>
+#include <cvrUtil/OsgMath.h>
 
 #include <iostream>
 
@@ -27,12 +28,7 @@ void BoardPopupMenu::updateStart()
 
 bool BoardPopupMenu::processIsect(IsectInfo & isect, int hand)
 {
-    if(BoardMenu::processIsect(isect,hand))
-    {
-        _currentPoint[hand] = isect.point;
-        return true;
-    }
-    return false;
+    return BoardMenu::processIsect(isect,hand);
 }
 
 void BoardPopupMenu::updateEnd()
@@ -91,7 +87,14 @@ bool BoardPopupMenu::processEvent(InteractionEvent * event)
                     ray = _currentPoint[tie->getHand()]
                             - tie->getTransform().getTrans();
 
-                    _moveDistance = ray.length();
+		    if(!tie->asPointerEvent())
+		    {
+			_moveDistance = ray.length();
+		    }
+		    else
+		    {
+			_moveDistance = ray.y();
+		    }
                     _menuPoint = _currentPoint[tie->getHand()]
                             * osg::Matrix::inverse(_menuRoot->getMatrix());
                     updateMovement(tie);
@@ -201,25 +204,4 @@ void BoardPopupMenu::setVisible(bool v)
 bool BoardPopupMenu::isVisible()
 {
     return _menuActive;
-}
-
-void BoardPopupMenu::updateMovement(TrackedButtonInteractionEvent * tie)
-{
-    osg::Vec3 menuPoint = osg::Vec3(0,_moveDistance,0);
-    //std::cerr << "move dist: " << _moveDistance << std::endl;
-    menuPoint = menuPoint * tie->getTransform();
-
-    //TODO: add hand/head mapping
-    osg::Vec3 viewerPoint =
-            TrackingManager::instance()->getHeadMat(0).getTrans();
-
-    osg::Vec3 viewerDir = viewerPoint - menuPoint;
-    viewerDir.z() = 0.0;
-
-    osg::Matrix menuRot;
-    menuRot.makeRotate(osg::Vec3(0,-1,0),viewerDir);
-
-    _menuRoot->setMatrix(
-            osg::Matrix::translate(-_menuPoint) * menuRot
-                    * osg::Matrix::translate(menuPoint));
 }

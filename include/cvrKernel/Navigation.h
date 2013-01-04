@@ -133,6 +133,7 @@ class CVRKERNEL_EXPORT Navigation
         {
             MOUSE_NAV = 0,
             MOUSEKEYBOARD_NAV,
+            POINTER_NAV,
             TRACKER_NAV,
             NONE_NAV
         };
@@ -236,6 +237,28 @@ class NavTracker : public NavImplementationBase
          * @brief Use a hand orientation to create navigation
          */
         void processNav(NavMode nm, osg::Matrix & mat);
+
+        int _eventButton; ///< hand button for event
+        NavMode _eventMode; ///< mode for active event
+        float _startScale; ///< scale at start of event
+        osg::Matrix _startXForm; ///< object space transform at start of event
+        osg::Vec3 _eventPos; ///< hand position at start of event
+        osg::Quat _eventRot; ///< hand rotation at start of event
+};
+
+/**
+ * @brief Navigation implementation that uses a tiled wall pointer device
+ */
+class NavPointer : public NavImplementationBase
+{
+    public:
+        virtual void processEvent(InteractionEvent * ie);
+    protected:
+        /**
+         * @brief Use a hand orientation to create navigation
+         */
+        void processNav(NavMode nm, osg::Matrix & mat);
+        osg::Vec3 getWallTrackballPoint(osg::Vec3 & wallPoint);
 
         int _eventButton; ///< hand button for event
         NavMode _eventMode; ///< mode for active event
