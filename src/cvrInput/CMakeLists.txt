@@ -14,6 +14,7 @@ SET(LIB_PUBLIC_HEADERS
     ${HEADER_PATH}/TrackerShmem.h
     ${HEADER_PATH}/TrackerSlave.h
     ${HEADER_PATH}/TrackerMouse.h
+    ${HEADER_PATH}/TrackerPlugin.h
     ${HEADER_PATH}/Export.h
 )
 
@@ -38,21 +39,21 @@ ENDIF(OMICRON_FOUND)
 ###KINECT
 
 
-SET(LIB_PUBLIC HEADERS ${LIB_PUBLIC_HEADERS}
-${HEADER_PATH}/TrackerKinect.h)
-SET(EXTRA_SOURCE ${EXTRA_SOURCE} TrackerKinect.cpp)
-SET(REMOTEKINECT_PATH /home/marcin/X/RemoteKinect/)
-INCLUDE_DIRECTORIES(${REMOTEKINECT_PATH})
+#SET(LIB_PUBLIC HEADERS ${LIB_PUBLIC_HEADERS}
+#${HEADER_PATH}/TrackerKinect.h)
+#SET(EXTRA_SOURCE ${EXTRA_SOURCE} TrackerKinect.cpp)
+#SET(REMOTEKINECT_PATH /home/calvr/3rdServer/RemoteKinect/)
+#INCLUDE_DIRECTORIES(${REMOTEKINECT_PATH})
 
-SET(LIB_PUBLIC_HEADERS ${LIB_PUBLIC_HEADERS}
-${REMOTEKINECT_PATH}/protocol/skeletonframe.pb.h
-${REMOTEKINECT_PATH}/protocol/skeleton.pb.h
-${REMOTEKINECT_PATH}/protocol/packing.pb.h)
+#SET(LIB_PUBLIC_HEADERS ${LIB_PUBLIC_HEADERS}
+#${REMOTEKINECT_PATH}/protocol/skeletonframe.pb.h
+#${REMOTEKINECT_PATH}/protocol/skeleton.pb.h
+#${REMOTEKINECT_PATH}/protocol/packing.pb.h)
 
-SET(EXTRA_SOURCE ${EXTRA_SOURCE}
-${REMOTEKINECT_PATH}/protocol/skeletonframe.pb.cc
-${REMOTEKINECT_PATH}/protocol/skeleton.pb.cc
-${REMOTEKINECT_PATH}/protocol/packing.pb.cc)
+#SET(EXTRA_SOURCE ${EXTRA_SOURCE}
+#${REMOTEKINECT_PATH}/protocol/skeletonframe.pb.cc
+#${REMOTEKINECT_PATH}/protocol/skeleton.pb.cc
+#${REMOTEKINECT_PATH}/protocol/packing.pb.cc)
 
 
 ###/KINECT
@@ -62,6 +63,7 @@ SET(LIB_SRC_FILES
     ${EXTRA_SOURCE}
     TrackingManager.cpp
     TrackerShmem.cpp
+    TrackerPlugin.cpp
     TrackerSlave.cpp
     TrackerMouse.cpp
 )
@@ -70,9 +72,9 @@ SET(LIB_EXTERNAL_INCLUDES
     ${OSG_INCLUDE_DIR}
 )
 
-SET(OSG_LIBRARIES
-    ${OSG_LIBRARIES}
-    "-lprotobuf -lzmq -luuid -lsnappy")
+#SET(OSG_LIBRARIES
+ #   ${OSG_LIBRARIES}
+  #  "-lprotobuf -lzmq -luuid -lsnappy")
 
 SET(LIB_EXTERNAL_LIBRARIES
     ${OSG_LIBRARIES}

@@ -1,9 +1,10 @@
-#include <cvrInput/TrackerKinect.h>
+//#include <cvrInput/TrackerKinect.h>
 
 #include <cvrInput/TrackingManager.h>
 #include <cvrInput/TrackerSlave.h>
 #include <cvrInput/TrackerShmem.h>
 #include <cvrInput/TrackerMouse.h>
+#include <cvrInput/TrackerPlugin.h>
 
 #ifdef WITH_OMICRON
 #include <cvrInput/TrackerOmicron.h>
@@ -179,7 +180,11 @@ bool TrackingManager::init()
 
             else if(systemName == "KINECT")
             {
-                tracker = new TrackerKinect();
+              //  tracker = new TrackerKinect();
+            }
+            else if(systemName == "PLUGIN")
+            {
+                tracker = new TrackerPlugin();
             }
             else
             {
