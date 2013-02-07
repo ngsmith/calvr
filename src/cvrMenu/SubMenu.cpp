@@ -42,6 +42,7 @@ void SubMenu::addItem(MenuItem * item)
     WebSingletons::menu()->send(stringprintf("[\"addItem\", %d, \"%p\", \"%p\"]\n", -1, this, item));
     _children.push_back(item);
     _dirty = true;
+    item->setParent(this);
 }
 
 void SubMenu::addItem(MenuItem * item, int position)
@@ -70,6 +71,7 @@ void SubMenu::addItem(MenuItem * item, int position)
     }
 
     _dirty = true;
+    item->setParent(this);
 }
 
 void SubMenu::removeItem(MenuItem * item)
@@ -82,6 +84,7 @@ void SubMenu::removeItem(MenuItem * item)
              WebSingletons::menu()->send(stringprintf("[\"removeItem\", \"%p\", \"%p\"]\n", this, item));
             _children.erase(it);
             _dirty = true;
+	    item->setParent(0);
             return;
         }
     }
